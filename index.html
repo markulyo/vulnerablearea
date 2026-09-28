@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIA Palawan IMO — El Niño Vulnerability GIS</title>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+<style>
+  :root{
+    --nia-green:#1b5e3a; --nia-green-dark:#123f27; --high:#c0392b; --med:#e08e2b; --low:#2e8b57;
+    --bg:#f5f3ee; --panel:#ffffff; --text:#20261f; --muted:#5c6a5c; --border:#dfe3da;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);}
+  #app{display:flex;height:100vh;width:100vw;overflow:hidden;}
+  #sidebar{width:340px;min-width:340px;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;overflow-y:auto;}
+  header{background:var(--nia-green);color:#fff;padding:16px 18px;}
+  header h1{font-size:16px;margin:0 0 2px;font-weight:700;}
+  header p{margin:0;font-size:12px;opacity:.85;}
+  .section{padding:14px 18px;border-bottom:1px solid var(--border);}
+  .section h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px;}
+  .legend-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;}
+  .swatch{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.15);}
+  .swatch.sq{border-radius:3px;}
+  .toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer;user-select:none;}
+  .toggle-row input{accent-color:var(--nia-green);width:15px;height:15px;}
+  .toggle-row.sub{margin-left:22px;margin-bottom:6px;font-size:12.5px;color:var(--muted);}
+  .toggle-row.sub input{width:13px;height:13px;}
+  .filter-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
+  .fbtn{border:1px solid var(--border);background:#fff;border-radius:14px;padding:4px 10px;font-size:12px;cursor:pointer;}
+  .fbtn.active{background:var(--nia-green);color:#fff;border-color:var(--nia-green);}
+  .list-item{padding:8px 10px;border-radius:6px;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .list-item:hover{background:#eef2ea;}
+  .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;color:#fff;white-space:nowrap;}
+  .pill.High{background:var(--high);} .pill.Medium{background:var(--med);} .pill.Low{background:var(--low);}
+  #map{flex:1;position:relative;}
+  .mapboxgl-popup-content{font-family:inherit;font-size:13px;padding:12px 14px;max-width:240px;}
+  .pop-title{font-weight:700;font-size:14px;margin-bottom:4px;color:var(--nia-green-dark);}
+  .pop-meta{color:var(--muted);font-size:12px;margin-bottom:6px;}
+  .disclaimer{font-size:11px;color:var(--muted);line-height:1.5;padding:14px 18px;background:#f0efe8;}
+  #search{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:10px;}
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#c7cec2;border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <header>
+      <h1>El Niño Vulnerability GIS</h1>
+      <p>National Irrigation Administration — Palawan IMO</p>
+    </header>
+
+    <div class="section">
+      <h2>Layers</h2>
+      <label class="toggle-row"><input type="checkbox" id="toggle-muni" checked> Vulnerable Areas</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-muni-nis" checked> Served by NIS</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-muni-cis" checked> Served by CIS</label>
+      <label class="toggle-row"><input type="checkbox" id="toggle-irr" checked> NIA irrigation systems</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-nis" checked> National Irrigation System (NIS)</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-cis" checked> Communal Irrigation System (CIS)</label>
+    </div>
+
+    <div class="section">
+      <h2>Legend</h2>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(192,57,43,.35);border:1.5px solid var(--high)"></span> High vulnerability</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(224,142,43,.35);border:1.5px solid var(--med)"></span> Medium vulnerability</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(46,139,87,.35);border:1.5px solid var(--low)"></span> Low vulnerability</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(44,62,80,.35);border:1.5px solid #2c3e50"></span> NIS (National Irrigation System)</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(125,143,160,.35);border:1.5px solid #7d8fa0"></span> CIS (Communal Irrigation System)</div>
+      <div class="filter-btns" id="filterBtns">
+        <button class="fbtn active" data-f="All">All</button>
+        <button class="fbtn" data-f="High">High</button>
+        <button class="fbtn" data-f="Medium">Medium</button>
+        <button class="fbtn" data-f="Low">Low</button>
+      </div>
+    </div>
+
+    <div class="section" style="flex:1;">
+      <h2>Vulnerable Areas</h2>
+      <input id="search" placeholder="Search system name...">
+      <div id="systemList"></div>
+    </div>
+
+    <div class="disclaimer">
+      <strong>Note:</strong> Vulnerability ratings shown are illustrative starting points based on general exposure
+      patterns (irrigation dependence on rainfed/river systems, past El Niño drought reports). Replace with PAGASA
+      seasonal climate outlooks, actual service-area shapefiles, and IMO field validation data before use in
+      operational planning.
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+mapboxgl.accessToken = 'pk.eyJ1IjoibWFya3VseW8iLCJhIjoiY21obGN3bzAyMWFlZDJrb3F6dDh4b29yaCJ9.DonMQxYB1xfSOvhnr-6X8A';
+
+const colors = {High:"#c0392b", Medium:"#e08e2b", Low:"#2e8b57"};
+
+const map = new mapboxgl.Map({
+  container:'map', style:'mapbox://styles/mapbox/light-v11',
+  center:[118.55,9.7], zoom:7.1
+});
+map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+let systemAreas = [];
+let currentFilter = "All";
+
+function popupHTML(title, meta, note){
+  return `<div class="pop-title">${title}</div><div class="pop-meta">${meta}</div><div>${note}</div>`;
+}
+
+const irrColors = {NIS:"#2c3e50", CIS:"#7d8fa0"};
+
+function normalizeLevel(v){
+  if(!v) return null;
+  const s = String(v).trim().toLowerCase();
+  if(s === 'high') return 'High';
+  if(s === 'medium') return 'Medium';
+  if(s === 'low') return 'Low';
+  return null;
+}
+
+function systemPassesSubgroup(s){
+  const showNIS = document.getElementById('toggle-muni-nis').checked;
+  const showCIS = document.getElementById('toggle-muni-cis').checked;
+  return (s.type==="NIS" && showNIS) || (s.type==="CIS" && showCIS);
+}
+
+// Bounding-box center of a Polygon/MultiPolygon (or Point) geometry — used
+// to fly-to and place a popup for tileset features, which have no marker.
+function geometryCenter(geom){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  (function walk(coords){
+    if(typeof coords[0] === 'number'){
+      const [x,y] = coords;
+      if(x<minX)minX=x; if(x>maxX)maxX=x;
+      if(y<minY)minY=y; if(y>maxY)maxY=y;
+    } else {
+      coords.forEach(walk);
+    }
+  })(geom.coordinates);
+  return [(minX+maxX)/2, (minY+maxY)/2];
+}
+
+function renderSystemList(filterText=""){
+  const wrap = document.getElementById('systemList');
+  wrap.innerHTML = "";
+  if(!document.getElementById('toggle-muni').checked) return;
+  systemAreas
+    .filter(s=> (currentFilter==="All"||s.level===currentFilter) && systemPassesSubgroup(s) && s.name.toLowerCase().includes(filterText.toLowerCase()))
+    .forEach(s=>{
+      const row = document.createElement('div');
+      row.className = "list-item";
+      const badge = `<span class="pill" style="background:${irrColors[s.type]}">${s.type}</span>`;
+      const levelPill = s.level ? `<span class="pill ${s.level}">${s.level}</span>` : "";
+      row.innerHTML = `<span>${s.name}</span><span style="display:flex;gap:4px;">${badge}${levelPill}</span>`;
+      row.onclick = ()=>{
+        map.flyTo({center:s.coords, zoom:12});
+        new mapboxgl.Popup({offset:8})
+          .setLngLat(s.coords)
+          .setHTML(popupHTML(s.name, [s.level?`Vulnerability: ${s.level}`:null, s.type, s.muni].filter(Boolean).join(' • '), ''))
+          .addTo(map);
+      };
+      wrap.appendChild(row);
+    });
+}
+
+const tilesetVisibility = {};
+let vulnerableAreaKeys = [];
+
+function applyTilesetVisibility(key){
+  const show = tilesetVisibility[key] ? tilesetVisibility[key]() : true;
+  [`${key}-fill`, `${key}-line`].forEach(id=>{
+    if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
+  });
+}
+
+function applyLayerVisibility(type){ applyTilesetVisibility(type.toLowerCase()); }
+
+// Filters the Vulnerable Area polygon layers on the map to match the
+// currently selected High/Medium/Low button, based on the Level column.
+function applyLevelFilter(){
+  const filterExpr = currentFilter === "All" ? null
+    : ['==', ['downcase', ['to-string', ['coalesce', ['get','Level'], '']]], currentFilter.toLowerCase()];
+  vulnerableAreaKeys.forEach(key=>{
+    [`${key}-fill`, `${key}-line`].forEach(id=>{
+      if(map.getLayer(id)) map.setFilter(id, filterExpr);
+    });
+  });
+}
+
+map.on('load', ()=>{
+  addTilesetLayer({
+    key: 'nis', tilesetId: 'markulyo.89igbhvu', color: irrColors.NIS,
+    label: 'National Irrigation System', anchorId: 'toggle-nis',
+    isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-nis').checked
+  });
+  addTilesetLayer({
+    key: 'cis', tilesetId: 'markulyo.1po8cpyssdt3', color: irrColors.CIS,
+    label: 'Communal Irrigation System', anchorId: 'toggle-cis',
+    isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-cis').checked
+  });
+  addTilesetLayer({
+    key: 'vulnnis', tilesetId: 'markulyo.mfk5h43aq2jt', color: irrColors.NIS,
+    label: 'Vulnerable Area (NIS)', anchorId: 'toggle-muni-nis', levelColored: true,
+    isVulnerableArea: true, vulnType: 'NIS', nameField: 'NIS',
+    isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-nis').checked
+  });
+  addTilesetLayer({
+    key: 'vulncis', tilesetId: 'markulyo.0jqiu6hon9y8', color: irrColors.CIS,
+    label: 'Vulnerable Area (CIS)', anchorId: 'toggle-muni-cis', levelColored: true,
+    isVulnerableArea: true, vulnType: 'CIS',
+    isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-cis').checked
+  });
+});
+
+function layerStatus(key, anchorId, msg, isError){
+  const id = `${key}-status`;
+  let el = document.getElementById(id);
+  if(!el){
+    el = document.createElement('div');
+    el.id = id;
+    el.style.cssText = 'font-size:11px;padding:6px 10px;margin-top:4px;border-radius:5px;';
+    document.getElementById(anchorId).closest('.toggle-row').insertAdjacentElement('afterend', el);
+  }
+  el.textContent = msg;
+  el.style.background = isError ? '#fbe4e1' : '#e6f2e9';
+  el.style.color = isError ? '#8a2e22' : '#1b5e3a';
+  console.log(`[${key}]`, msg);
+}
+
+async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisible, levelColored, isVulnerableArea, vulnType, nameField}){
+  tilesetVisibility[key] = isVisible;
+  let sourceLayerName = null;
+
+  // Ask Mapbox directly for the tileset's real source-layer name(s) —
+  // avoids guessing, which is the most common reason a vector layer
+  // silently fails to render.
+  try{
+    const resp = await fetch(`https://api.mapbox.com/v4/${tilesetId}.json?secure&access_token=${mapboxgl.accessToken}`);
+    if(!resp.ok) throw new Error(`Tileset metadata request failed (HTTP ${resp.status}). Check that the tileset ID is correct and your token can access it.`);
+    const meta = await resp.json();
+    const layers = (meta.vector_layers || []).map(l=>l.id);
+    if(layers.length === 0) throw new Error('Tileset metadata has no vector_layers — is this tileset actually published/processed?');
+    sourceLayerName = layers[0];
+    if(layers.length > 1) layerStatus(key, anchorId, `Tileset has multiple layers (${layers.join(', ')}); using "${sourceLayerName}". Tell me if you meant a different one.`, false);
+  } catch(err){
+    layerStatus(key, anchorId, `Couldn't load ${label} tileset: ${err.message}`, true);
+    return;
+  }
+
+  map.addSource(`${key}-src`, { type: 'vector', url: `mapbox://${tilesetId}` });
+
+  // If the tileset carries a "Level" property matching our vulnerability
+  // categories (High/Medium/Low), color by that — matched case/whitespace-
+  // insensitively so "High", "high ", "HIGH" etc. all resolve the same way.
+  // Otherwise use a flat color.
+  const normalizedLevel = ['downcase', ['to-string', ['coalesce', ['get','Level'], '']]];
+  const fillColor = levelColored
+    ? ['match', normalizedLevel, 'high', colors.High, 'medium', colors.Medium, 'low', colors.Low, color]
+    : color;
+  const lineColor = levelColored ? fillColor : color;
+
+  map.addLayer({
+    id: `${key}-fill`, type: 'fill', source: `${key}-src`, 'source-layer': sourceLayerName,
+    paint: { 'fill-color': fillColor, 'fill-opacity': 0.35 }
+  });
+  map.addLayer({
+    id: `${key}-line`, type: 'line', source: `${key}-src`, 'source-layer': sourceLayerName,
+    paint: { 'line-color': lineColor, 'line-width': 1.5 }
+  });
+
+  [`${key}-fill`, `${key}-line`].forEach(id=>{
+    map.on('click', id, (e)=>{
+      const f = e.features[0];
+      const p = f.properties || {};
+      const systemName = (nameField && p[nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name;
+      const title = systemName || p.name || p.NAME || p.Name || label;
+      const level = p.Level || p.level;
+      const metaBits = [level ? `Vulnerability: ${level}` : null, label, p.muni || p.municipality, p.area].filter(Boolean);
+      const note = p.note || p.description || '';
+      new mapboxgl.Popup({offset:8})
+        .setLngLat(e.lngLat)
+        .setHTML(popupHTML(title, metaBits.join(' • '), note))
+        .addTo(map);
+    });
+    map.on('mouseenter', id, ()=> map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', id, ()=> map.getCanvas().style.cursor = '');
+  });
+
+  applyTilesetVisibility(key);
+  if(isVulnerableArea){
+    vulnerableAreaKeys.push(key);
+    applyLevelFilter();
+  }
+
+  // Confirm once tiles actually arrive whether any features were found at
+  // the current view — an empty result usually means the data exists
+  // outside the visible map area/zoom, not a config error.
+  map.once('idle', ()=>{
+    const found = map.querySourceFeatures(`${key}-src`, { sourceLayer: sourceLayerName });
+    if(found.length === 0){
+      layerStatus(key, anchorId, `${label} layer connected ("${sourceLayerName}") but no features found in the current view/zoom. The data may be outside Palawan's visible extent, or the tileset may be empty.`, true);
+      return;
+    }
+    layerStatus(key, anchorId, `layer loaded`, false);
+    if(isVulnerableArea){
+      const seen = new Set();
+      found.forEach(f=>{
+        const p = f.properties || {};
+        const name = (nameField && p[nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name || p.name || p.NAME || p.Name || 'Unnamed system';
+        if(seen.has(name)) return;
+        seen.add(name);
+        systemAreas.push({
+          name,
+          level: normalizeLevel(p.Level || p.level),
+          muni: p.muni || p.municipality || null,
+          type: vulnType,
+          coords: geometryCenter(f.geometry)
+        });
+      });
+      renderSystemList(document.getElementById('search').value);
+    }
+  });
+}
+
+map.on('error', (e)=>{
+  const msg = e.error?.message || String(e.error || 'unknown map error');
+  const anchors = { nis:'toggle-nis', cis:'toggle-cis', vulnnis:'toggle-muni-nis', vulncis:'toggle-muni-cis' };
+  const key = Object.keys(anchors).find(k=> e.sourceId === `${k}-src`);
+  if(key) layerStatus(key, anchors[key], `Map error: ${msg}`, true);
+  else console.error('Map error:', msg);
+});
+
+document.getElementById('toggle-muni').addEventListener('change', ()=>{
+  vulnerableAreaKeys.forEach(applyTilesetVisibility);
+  renderSystemList(document.getElementById('search').value);
+});
+document.getElementById('toggle-muni-nis').addEventListener('change', ()=>{
+  applyTilesetVisibility('vulnnis');
+  renderSystemList(document.getElementById('search').value);
+});
+document.getElementById('toggle-muni-cis').addEventListener('change', ()=>{
+  applyTilesetVisibility('vulncis');
+  renderSystemList(document.getElementById('search').value);
+});
+document.getElementById('toggle-irr').addEventListener('change', ()=>{ applyLayerVisibility('NIS'); applyLayerVisibility('CIS'); });
+document.getElementById('toggle-nis').addEventListener('change', ()=> applyLayerVisibility('NIS'));
+document.getElementById('toggle-cis').addEventListener('change', ()=> applyLayerVisibility('CIS'));
+document.querySelectorAll('.fbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.f;
+    applyLevelFilter();
+    renderSystemList(document.getElementById('search').value);
+  });
+});
+document.getElementById('search').addEventListener('input', e=> renderSystemList(e.target.value));
+</script>
+</body>
+</html>
