@@ -8,7 +8,7 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
 <style>
   :root{
-    --nia-green:#1b5e3a; --nia-green-dark:#123f27; --high:#c0392b; --med:#e08e2b; --low:#2e8b57;
+    --nia-green:#1b5e3a; --nia-green-dark:#123f27; --high:#c0392b; --med:#e08e2b; --low:#f1c40f;
     --bg:#f5f3ee; --panel:#ffffff; --text:#20261f; --muted:#5c6a5c; --border:#dfe3da;
   }
   *{box-sizing:border-box;}
@@ -24,6 +24,7 @@
   .legend-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;}
   .swatch{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.15);}
   .swatch.sq{border-radius:3px;}
+  .swatch.line{border-radius:2px;height:4px;border:none;}
   .toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer;user-select:none;}
   .toggle-row input{accent-color:var(--nia-green);width:15px;height:15px;}
   .toggle-row.sub{margin-left:22px;margin-bottom:6px;font-size:12.5px;color:var(--muted);}
@@ -36,9 +37,13 @@
   .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;color:#fff;white-space:nowrap;}
   .pill.High{background:var(--high);} .pill.Medium{background:var(--med);} .pill.Low{background:var(--low);}
   #map{flex:1;position:relative;}
-  .mapboxgl-popup-content{font-family:inherit;font-size:13px;padding:12px 14px;max-width:240px;}
+  .mapboxgl-popup-content{font-family:inherit;font-size:13px;padding:12px 14px;max-width:300px;}
   .pop-title{font-weight:700;font-size:14px;margin-bottom:4px;color:var(--nia-green-dark);}
   .pop-meta{color:var(--muted);font-size:12px;margin-bottom:6px;}
+  .pop-props{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);max-height:220px;overflow-y:auto;}
+  .pop-props .row{display:flex;justify-content:space-between;gap:10px;padding:2px 0;font-size:12px;}
+  .pop-props .k{color:var(--muted);flex-shrink:0;}
+  .pop-props .v{text-align:right;word-break:break-word;}
   .disclaimer{font-size:11px;color:var(--muted);line-height:1.5;padding:14px 18px;background:#f0efe8;}
   #search{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-bottom:10px;}
   ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:#c7cec2;border-radius:4px;}
@@ -60,15 +65,23 @@
       <label class="toggle-row"><input type="checkbox" id="toggle-irr" checked> NIA irrigation systems</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-nis" checked> National Irrigation System (NIS)</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-cis" checked> Communal Irrigation System (CIS)</label>
+      <label class="toggle-row"><input type="checkbox" id="toggle-interventions"> Interventions</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-stw" checked> Shallow Tube Wells</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-fuel" checked> Fuel Subsidy</label>
+      <label class="toggle-row sub"><input type="checkbox" id="toggle-desilting" checked> Desilting Works</label>
     </div>
 
     <div class="section">
       <h2>Legend</h2>
       <div class="legend-row"><span class="swatch sq" style="background:rgba(192,57,43,.35);border:1.5px solid var(--high)"></span> High vulnerability</div>
       <div class="legend-row"><span class="swatch sq" style="background:rgba(224,142,43,.35);border:1.5px solid var(--med)"></span> Medium vulnerability</div>
-      <div class="legend-row"><span class="swatch sq" style="background:rgba(46,139,87,.35);border:1.5px solid var(--low)"></span> Low vulnerability</div>
-      <div class="legend-row"><span class="swatch sq" style="background:rgba(44,62,80,.35);border:1.5px solid #2c3e50"></span> NIS (National Irrigation System)</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(241,196,15,.35);border:1.5px solid var(--low)"></span> Low vulnerability</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(144,238,144,.35);border:1.5px solid #90ee90"></span> NIS — Operational</div>
+      <div class="legend-row"><span class="swatch sq" style="background:#145a32;border:2.5px solid #fdf6b2"></span> NIS — Non-operational</div>
       <div class="legend-row"><span class="swatch sq" style="background:rgba(125,143,160,.35);border:1.5px solid #7d8fa0"></span> CIS (Communal Irrigation System)</div>
+      <div class="legend-row"><span class="swatch" style="background:#e74c3c;border:1.5px solid #e74c3c"></span> Shallow Tube Wells</div>
+      <div class="legend-row"><span class="swatch sq" style="background:rgba(52,152,219,.35);border:1.5px solid #3498db"></span> Fuel Subsidy</div>
+      <div class="legend-row"><span class="swatch line" style="background:#e91e63"></span> Desilting Works</div>
       <div class="filter-btns" id="filterBtns">
         <button class="fbtn active" data-f="All">All</button>
         <button class="fbtn" data-f="High">High</button>
@@ -96,7 +109,7 @@
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoibWFya3VseW8iLCJhIjoiY21obGN3bzAyMWFlZDJrb3F6dDh4b29yaCJ9.DonMQxYB1xfSOvhnr-6X8A';
 
-const colors = {High:"#c0392b", Medium:"#e08e2b", Low:"#2e8b57"};
+const colors = {High:"#c0392b", Medium:"#e08e2b", Low:"#f1c40f"};
 
 const map = new mapboxgl.Map({
   container:'map', style:'mapbox://styles/mapbox/satellite-streets-v12',
@@ -107,11 +120,46 @@ map.addControl(new mapboxgl.NavigationControl(), 'top-right');
 let systemAreas = [];
 let currentFilter = "All";
 
-function popupHTML(title, meta, note){
-  return `<div class="pop-title">${title}</div><div class="pop-meta">${meta}</div><div>${note}</div>`;
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Any property whose key contains "cost" is treated as a PHP amount and
+// formatted with a ₱ sign and thousands separators.
+function formatPropValue(key, v){
+  if(/cost/i.test(key)){
+    const num = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+    if(!isNaN(num)) return '₱' + num.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  return v;
+}
+
+const hiddenPropKeys = new Set(['name of sy']);
+
+function formatPropLabel(key){
+  if(/length/i.test(key)) return `${key} (km)`;
+  if(/area/i.test(key)) return `${key} (ha.)`;
+  return key;
+}
+
+// Renders every key/value pair from a Mapbox tileset feature's properties,
+// so popups show the full published data rather than a curated subset.
+function renderPropsTable(props){
+  if(!props) return '';
+  const entries = Object.entries(props).filter(([k,v])=> v !== null && v !== undefined && v !== '' && !hiddenPropKeys.has(k.trim().toLowerCase()));
+  if(entries.length === 0) return '';
+  const rows = entries.map(([k,v])=>
+    `<div class="row"><span class="k">${escapeHTML(formatPropLabel(k))}</span><span class="v">${escapeHTML(formatPropValue(k,v))}</span></div>`
+  ).join('');
+  return `<div class="pop-props">${rows}</div>`;
+}
+
+function popupHTML(title, meta, note, props){
+  return `<div class="pop-title">${title}</div>${meta?`<div class="pop-meta">${meta}</div>`:''}${note?`<div>${note}</div>`:''}${renderPropsTable(props)}`;
 }
 
 const irrColors = {NIS:"#2c3e50", CIS:"#7d8fa0"};
+const interventionColors = {STW:"#e74c3c", DESILT:"#e91e63", FUEL:"#3498db"};
 
 function normalizeLevel(v){
   if(!v) return null;
@@ -144,6 +192,20 @@ function geometryCenter(geom){
   return [(minX+maxX)/2, (minY+maxY)/2];
 }
 
+function geometryBounds(geom){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  (function walk(coords){
+    if(typeof coords[0] === 'number'){
+      const [x,y] = coords;
+      if(x<minX)minX=x; if(x>maxX)maxX=x;
+      if(y<minY)minY=y; if(y>maxY)maxY=y;
+    } else {
+      coords.forEach(walk);
+    }
+  })(geom.coordinates);
+  return [[minX,minY],[maxX,maxY]];
+}
+
 function renderSystemList(filterText=""){
   const wrap = document.getElementById('systemList');
   wrap.innerHTML = "";
@@ -160,7 +222,7 @@ function renderSystemList(filterText=""){
         map.flyTo({center:s.coords, zoom:12});
         new mapboxgl.Popup({offset:8})
           .setLngLat(s.coords)
-          .setHTML(popupHTML(s.name, [s.level?`Vulnerability: ${s.level}`:null, s.type, s.muni].filter(Boolean).join(' • '), ''))
+          .setHTML(popupHTML(s.name, [s.level?`Vulnerability: ${s.level}`:null, s.type, s.muni].filter(Boolean).join(' • '), '', s.props))
           .addTo(map);
       };
       wrap.appendChild(row);
@@ -169,12 +231,78 @@ function renderSystemList(filterText=""){
 
 const tilesetVisibility = {};
 let vulnerableAreaKeys = [];
+const layerMeta = {};
+const featuresChecked = {};
+
+// Mapbox GL never requests a source's tiles while every layer using it is
+// hidden (visibility:'none'), so a layer that starts toggled off has no
+// features to find on the map's first 'idle'. Re-run the check whenever the
+// layer actually becomes visible, and only mark it checked once features
+// are confirmed present — an empty result while tiles are still loading in
+// gets retried instead of being reported as an error permanently.
+function checkFeatures(key){
+  if(featuresChecked[key]) return;
+  const meta = layerMeta[key];
+  if(!meta) return;
+  const found = map.querySourceFeatures(`${key}-src`, { sourceLayer: meta.sourceLayerName });
+  if(found.length === 0){
+    layerStatus(key, meta.anchorId, `${meta.label} layer connected ("${meta.sourceLayerName}") but no features found in the current view/zoom. The data may be outside Palawan's visible extent, or the tileset may be empty.`, true);
+    return;
+  }
+  featuresChecked[key] = true;
+  layerStatus(key, meta.anchorId, `layer loaded`, false);
+  if(meta.isVulnerableArea){
+    const seen = new Set();
+    found.forEach(f=>{
+      const p = f.properties || {};
+      const name = (meta.nameField && p[meta.nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name || p.name || p.NAME || p.Name || 'Malatgao RIS';
+      if(/batang\s*batang/i.test(name)) return;
+      if(seen.has(name)) return;
+      seen.add(name);
+      systemAreas.push({
+        name,
+        level: normalizeLevel(p.Level || p.level),
+        muni: p.muni || p.municipality || null,
+        type: meta.vulnType,
+        coords: geometryCenter(f.geometry),
+        props: p
+      });
+    });
+    renderSystemList(document.getElementById('search').value);
+  }
+  if(key === 'nis') fitToNIS(found);
+}
+
+// On first load, zoom the map to the full extent of the NIS layer instead
+// of the whole-province default view.
+let nisFitted = false;
+function fitToNIS(found){
+  if(nisFitted) return;
+  nisFitted = true;
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  found.forEach(f=>{
+    const [[bx0,by0],[bx1,by1]] = geometryBounds(f.geometry);
+    if(bx0<minX)minX=bx0; if(bx1>maxX)maxX=bx1;
+    if(by0<minY)minY=by0; if(by1>maxY)maxY=by1;
+  });
+  map.fitBounds([[minX,minY],[maxX,maxY]], {padding: 60, duration: 0});
+}
 
 function applyTilesetVisibility(key){
   const show = tilesetVisibility[key] ? tilesetVisibility[key]() : true;
-  [`${key}-fill`, `${key}-line`].forEach(id=>{
+  [`${key}-fill`, `${key}-line`, `${key}-circle`, `${key}-halo`].forEach(id=>{
     if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
   });
+  if(show && layerMeta[key] && !featuresChecked[key]){
+    map.once('idle', ()=> checkFeatures(key));
+  }
+}
+
+// Layers that must always render above every other layer, regardless of
+// the order tilesets finish loading in.
+const frontLayerIds = ['stw-halo', 'stw-circle'];
+function bringFrontLayersToTop(){
+  frontLayerIds.forEach(id=>{ if(map.getLayer(id)) map.moveLayer(id); });
 }
 
 function applyLayerVisibility(type){ applyTilesetVisibility(type.toLowerCase()); }
@@ -193,8 +321,25 @@ function applyLevelFilter(){
 
 map.on('load', ()=>{
   addTilesetLayer({
-    key: 'nis', tilesetId: 'markulyo.89igbhvu', color: irrColors.NIS,
+    key: 'nis', tilesetId: 'markulyo.qcoporzp84a6', color: irrColors.NIS,
     label: 'National Irrigation System', anchorId: 'toggle-nis',
+    colorField: 'fusa',
+    colorValues: {
+      operational: '#90ee90',
+      'non-operational': '#145a32', 'non operational': '#145a32', 'nonoperational': '#145a32', 'not operational': '#145a32'
+    },
+    colorDefault: irrColors.NIS,
+    strokeField: 'fusa',
+    strokeValues: {
+      'non-operational': {color:'#fdf6b2', width:3},
+      'non operational': {color:'#fdf6b2', width:3},
+      'nonoperational': {color:'#fdf6b2', width:3},
+      'not operational': {color:'#fdf6b2', width:3}
+    },
+    opacityField: 'fusa',
+    opacityValues: {
+      'non-operational': 1, 'non operational': 1, 'nonoperational': 1, 'not operational': 1
+    },
     isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-nis').checked
   });
   addTilesetLayer({
@@ -203,7 +348,7 @@ map.on('load', ()=>{
     isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-cis').checked
   });
   addTilesetLayer({
-    key: 'vulnnis', tilesetId: 'markulyo.mfk5h43aq2jt', color: irrColors.NIS,
+    key: 'vulnnis', tilesetId: 'markulyo.uf9bh9dqr0hf', color: irrColors.NIS,
     label: 'Vulnerable Area (NIS)', anchorId: 'toggle-muni-nis', levelColored: true,
     isVulnerableArea: true, vulnType: 'NIS', nameField: 'NIS',
     isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-nis').checked
@@ -213,6 +358,21 @@ map.on('load', ()=>{
     label: 'Vulnerable Area (CIS)', anchorId: 'toggle-muni-cis', levelColored: true,
     isVulnerableArea: true, vulnType: 'CIS',
     isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-cis').checked
+  });
+  addTilesetLayer({
+    key: 'stw', tilesetId: 'markulyo.al3nqvxi2h9m', color: interventionColors.STW,
+    label: 'Shallow Tube Wells', anchorId: 'toggle-stw', renderType: 'point',
+    isVisible: ()=> document.getElementById('toggle-interventions').checked && document.getElementById('toggle-stw').checked
+  });
+  addTilesetLayer({
+    key: 'desilting', tilesetId: 'markulyo.ig6lfu7iwz3x', color: interventionColors.DESILT,
+    label: 'Desilting Works', anchorId: 'toggle-desilting', renderType: 'line',
+    isVisible: ()=> document.getElementById('toggle-interventions').checked && document.getElementById('toggle-desilting').checked
+  });
+  addTilesetLayer({
+    key: 'fuel', tilesetId: 'markulyo.lzbxqoezmdaa', color: interventionColors.FUEL,
+    label: 'Fuel Subsidy', anchorId: 'toggle-fuel',
+    isVisible: ()=> document.getElementById('toggle-interventions').checked && document.getElementById('toggle-fuel').checked
   });
 });
 
@@ -231,7 +391,7 @@ function layerStatus(key, anchorId, msg, isError){
   console.log(`[${key}]`, msg);
 }
 
-async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisible, levelColored, isVulnerableArea, vulnType, nameField}){
+async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisible, levelColored, isVulnerableArea, vulnType, nameField, renderType='polygon', colorField, colorValues, colorDefault, strokeField, strokeValues, strokeWidthDefault=1.5, opacityField, opacityValues, opacityDefault=0.35, pointHalo=false}){
   tilesetVisibility[key] = isVisible;
   let sourceLayerName = null;
 
@@ -253,26 +413,82 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
 
   map.addSource(`${key}-src`, { type: 'vector', url: `mapbox://${tilesetId}` });
 
-  // If the tileset carries a "Level" property matching our vulnerability
-  // categories (High/Medium/Low), color by that — matched case/whitespace-
-  // insensitively so "High", "high ", "HIGH" etc. all resolve the same way.
-  // Otherwise use a flat color.
-  const normalizedLevel = ['downcase', ['to-string', ['coalesce', ['get','Level'], '']]];
-  const fillColor = levelColored
-    ? ['match', normalizedLevel, 'high', colors.High, 'medium', colors.Medium, 'low', colors.Low, color]
-    : color;
-  const lineColor = levelColored ? fillColor : color;
+  let layerIds;
+  if(renderType === 'point'){
+    layerIds = [];
+    // pointHalo adds a larger, translucent ring beneath the marker dot so
+    // isolated points stand out at a glance, even at lower zoom levels.
+    if(pointHalo){
+      map.addLayer({
+        id: `${key}-halo`, type: 'circle', source: `${key}-src`, 'source-layer': sourceLayerName,
+        paint: { 'circle-radius': 12, 'circle-color': color, 'circle-opacity': 0.25 }
+      });
+      layerIds.push(`${key}-halo`);
+    }
+    map.addLayer({
+      id: `${key}-circle`, type: 'circle', source: `${key}-src`, 'source-layer': sourceLayerName,
+      paint: { 'circle-radius': 6, 'circle-color': color, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' }
+    });
+    layerIds.push(`${key}-circle`);
+  } else if(renderType === 'line'){
+    map.addLayer({
+      id: `${key}-line`, type: 'line', source: `${key}-src`, 'source-layer': sourceLayerName,
+      paint: { 'line-color': color, 'line-width': 4 },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    });
+    layerIds = [`${key}-line`];
+  } else {
+    // If the tileset carries a "Level" property matching our vulnerability
+    // categories (High/Medium/Low), color by that — matched case/whitespace-
+    // insensitively so "High", "high ", "HIGH" etc. all resolve the same way.
+    // colorField/colorValues does the same for an arbitrary status attribute
+    // (e.g. FUSA operational status). Otherwise use a flat color.
+    let fillColor;
+    if(colorField){
+      const normalizedField = ['downcase', ['to-string', ['coalesce', ['get', colorField], '']]];
+      const matchArgs = Object.entries(colorValues).flatMap(([val,col])=>[val.toLowerCase(), col]);
+      fillColor = ['match', normalizedField, ...matchArgs, colorDefault || color];
+    } else if(levelColored){
+      const normalizedLevel = ['downcase', ['to-string', ['coalesce', ['get','Level'], '']]];
+      fillColor = ['match', normalizedLevel, 'high', colors.High, 'medium', colors.Medium, 'low', colors.Low, color];
+    } else {
+      fillColor = color;
+    }
+    let lineColor = (colorField || levelColored) ? fillColor : color;
+    let lineWidth = strokeWidthDefault;
 
-  map.addLayer({
-    id: `${key}-fill`, type: 'fill', source: `${key}-src`, 'source-layer': sourceLayerName,
-    paint: { 'fill-color': fillColor, 'fill-opacity': 0.35 }
-  });
-  map.addLayer({
-    id: `${key}-line`, type: 'line', source: `${key}-src`, 'source-layer': sourceLayerName,
-    paint: { 'line-color': lineColor, 'line-width': 1.5 }
-  });
+    // strokeField/strokeValues lets specific attribute values (e.g. FUSA
+    // "Non-operational") get a distinct, heavier outline so they stand out
+    // from the fill color alone.
+    if(strokeField){
+      const normalizedStrokeField = ['downcase', ['to-string', ['coalesce', ['get', strokeField], '']]];
+      const colorMatchArgs = Object.entries(strokeValues).flatMap(([val,v])=>[val.toLowerCase(), v.color]);
+      const widthMatchArgs = Object.entries(strokeValues).flatMap(([val,v])=>[val.toLowerCase(), v.width]);
+      lineColor = ['match', normalizedStrokeField, ...colorMatchArgs, lineColor];
+      lineWidth = ['match', normalizedStrokeField, ...widthMatchArgs, strokeWidthDefault];
+    }
 
-  [`${key}-fill`, `${key}-line`].forEach(id=>{
+    // opacityField/opacityValues lets specific attribute values render fully
+    // opaque instead of the shared translucent default.
+    let fillOpacity = opacityDefault;
+    if(opacityField){
+      const normalizedOpacityField = ['downcase', ['to-string', ['coalesce', ['get', opacityField], '']]];
+      const opacityMatchArgs = Object.entries(opacityValues).flatMap(([val,v])=>[val.toLowerCase(), v]);
+      fillOpacity = ['match', normalizedOpacityField, ...opacityMatchArgs, opacityDefault];
+    }
+
+    map.addLayer({
+      id: `${key}-fill`, type: 'fill', source: `${key}-src`, 'source-layer': sourceLayerName,
+      paint: { 'fill-color': fillColor, 'fill-opacity': fillOpacity }
+    });
+    map.addLayer({
+      id: `${key}-line`, type: 'line', source: `${key}-src`, 'source-layer': sourceLayerName,
+      paint: { 'line-color': lineColor, 'line-width': lineWidth }
+    });
+    layerIds = [`${key}-fill`, `${key}-line`];
+  }
+
+  layerIds.forEach(id=>{
     map.on('click', id, (e)=>{
       const f = e.features[0];
       const p = f.properties || {};
@@ -283,12 +499,14 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
       const note = p.note || p.description || '';
       new mapboxgl.Popup({offset:8})
         .setLngLat(e.lngLat)
-        .setHTML(popupHTML(title, metaBits.join(' • '), note))
+        .setHTML(popupHTML(title, metaBits.join(' • '), note, p))
         .addTo(map);
     });
     map.on('mouseenter', id, ()=> map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, ()=> map.getCanvas().style.cursor = '');
   });
+
+  layerMeta[key] = { sourceLayerName, label, anchorId, isVulnerableArea, vulnType, nameField };
 
   applyTilesetVisibility(key);
   if(isVulnerableArea){
@@ -296,39 +514,15 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
     applyLevelFilter();
   }
 
-  // Confirm once tiles actually arrive whether any features were found at
-  // the current view — an empty result usually means the data exists
-  // outside the visible map area/zoom, not a config error.
-  map.once('idle', ()=>{
-    const found = map.querySourceFeatures(`${key}-src`, { sourceLayer: sourceLayerName });
-    if(found.length === 0){
-      layerStatus(key, anchorId, `${label} layer connected ("${sourceLayerName}") but no features found in the current view/zoom. The data may be outside Palawan's visible extent, or the tileset may be empty.`, true);
-      return;
-    }
-    layerStatus(key, anchorId, `layer loaded`, false);
-    if(isVulnerableArea){
-      const seen = new Set();
-      found.forEach(f=>{
-        const p = f.properties || {};
-        const name = (nameField && p[nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name || p.name || p.NAME || p.Name || 'Unnamed system';
-        if(seen.has(name)) return;
-        seen.add(name);
-        systemAreas.push({
-          name,
-          level: normalizeLevel(p.Level || p.level),
-          muni: p.muni || p.municipality || null,
-          type: vulnType,
-          coords: geometryCenter(f.geometry)
-        });
-      });
-      renderSystemList(document.getElementById('search').value);
-    }
-  });
+  // Tileset layers load asynchronously in an unpredictable order (each
+  // depends on its own metadata fetch), so re-assert the always-on-top
+  // layers every time any layer finishes loading.
+  bringFrontLayersToTop();
 }
 
 map.on('error', (e)=>{
   const msg = e.error?.message || String(e.error || 'unknown map error');
-  const anchors = { nis:'toggle-nis', cis:'toggle-cis', vulnnis:'toggle-muni-nis', vulncis:'toggle-muni-cis' };
+  const anchors = { nis:'toggle-nis', cis:'toggle-cis', vulnnis:'toggle-muni-nis', vulncis:'toggle-muni-cis', stw:'toggle-stw', desilting:'toggle-desilting', fuel:'toggle-fuel' };
   const key = Object.keys(anchors).find(k=> e.sourceId === `${k}-src`);
   if(key) layerStatus(key, anchors[key], `Map error: ${msg}`, true);
   else console.error('Map error:', msg);
@@ -349,6 +543,10 @@ document.getElementById('toggle-muni-cis').addEventListener('change', ()=>{
 document.getElementById('toggle-irr').addEventListener('change', ()=>{ applyLayerVisibility('NIS'); applyLayerVisibility('CIS'); });
 document.getElementById('toggle-nis').addEventListener('change', ()=> applyLayerVisibility('NIS'));
 document.getElementById('toggle-cis').addEventListener('change', ()=> applyLayerVisibility('CIS'));
+document.getElementById('toggle-interventions').addEventListener('change', ()=>{ applyTilesetVisibility('stw'); applyTilesetVisibility('desilting'); applyTilesetVisibility('fuel'); });
+document.getElementById('toggle-stw').addEventListener('change', ()=> applyTilesetVisibility('stw'));
+document.getElementById('toggle-desilting').addEventListener('change', ()=> applyTilesetVisibility('desilting'));
+document.getElementById('toggle-fuel').addEventListener('change', ()=> applyTilesetVisibility('fuel'));
 document.querySelectorAll('.fbtn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
