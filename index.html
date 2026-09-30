@@ -21,6 +21,10 @@
   header p{margin:0;font-size:12px;opacity:.85;}
   .section{padding:14px 18px;border-bottom:1px solid var(--border);}
   .section h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px;}
+  .section.interventions{border-left:4px solid #4f46e5;background:#f5f4fe;}
+  .section.interventions h2{color:#4f46e5;display:flex;align-items:center;gap:6px;}
+  .badge-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#4f46e5;color:#fff;padding:2px 7px;border-radius:8px;}
+  .section.interventions .toggle-row input{accent-color:#4f46e5;}
   .legend-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;}
   .swatch{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.15);}
   .swatch.sq{border-radius:3px;}
@@ -61,10 +65,12 @@
       <h2>Layers</h2>
       <label class="toggle-row"><input type="checkbox" id="toggle-muni" checked> Vulnerable Areas</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-muni-nis" checked> Served by NIS</label>
-      <label class="toggle-row sub"><input type="checkbox" id="toggle-muni-cis" checked> Served by CIS</label>
       <label class="toggle-row"><input type="checkbox" id="toggle-irr" checked> NIA irrigation systems</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-nis" checked> National Irrigation System (NIS)</label>
-      <label class="toggle-row sub"><input type="checkbox" id="toggle-cis" checked> Communal Irrigation System (CIS)</label>
+    </div>
+
+    <div class="section interventions">
+      <h2>Interventions <span class="badge-tag">Programs</span></h2>
       <label class="toggle-row"><input type="checkbox" id="toggle-interventions"> Interventions</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-stw" checked> Shallow Tube Wells</label>
       <label class="toggle-row sub"><input type="checkbox" id="toggle-fuel" checked> Fuel Subsidy</label>
@@ -78,7 +84,6 @@
       <div class="legend-row"><span class="swatch sq" style="background:rgba(241,196,15,.9);border:1.5px solid var(--low)"></span> Low vulnerability</div>
       <div class="legend-row"><span class="swatch sq" style="background:rgba(144,238,144,.9);border:1.5px solid #90ee90"></span> NIS — Operational</div>
       <div class="legend-row"><span class="swatch sq" style="background:#145a32;border:2.5px solid #fdf6b2"></span> NIS — Non-operational</div>
-      <div class="legend-row"><span class="swatch sq" style="background:rgba(125,143,160,.9);border:1.5px solid #7d8fa0"></span> CIS (Communal Irrigation System)</div>
       <div class="legend-row"><span class="swatch" style="background:#e74c3c;border:1.5px solid #e74c3c"></span> Shallow Tube Wells</div>
       <div class="legend-row"><span class="swatch sq" style="background:rgba(52,152,219,.9);border:1.5px solid #3498db"></span> Fuel Subsidy</div>
       <div class="legend-row"><span class="swatch line" style="background:#e91e63"></span> Desilting Works</div>
@@ -158,7 +163,7 @@ function popupHTML(title, meta, note, props){
   return `<div class="pop-title">${title}</div>${meta?`<div class="pop-meta">${meta}</div>`:''}${note?`<div>${note}</div>`:''}${renderPropsTable(props)}`;
 }
 
-const irrColors = {NIS:"#2c3e50", CIS:"#7d8fa0"};
+const irrColors = {NIS:"#2c3e50"};
 const interventionColors = {STW:"#e74c3c", DESILT:"#e91e63", FUEL:"#3498db"};
 
 function normalizeLevel(v){
@@ -171,9 +176,7 @@ function normalizeLevel(v){
 }
 
 function systemPassesSubgroup(s){
-  const showNIS = document.getElementById('toggle-muni-nis').checked;
-  const showCIS = document.getElementById('toggle-muni-cis').checked;
-  return (s.type==="NIS" && showNIS) || (s.type==="CIS" && showCIS);
+  return s.type==="NIS" && document.getElementById('toggle-muni-nis').checked;
 }
 
 // Bounding-box center of a Polygon/MultiPolygon (or Point) geometry — used
@@ -343,21 +346,10 @@ map.on('load', ()=>{
     isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-nis').checked
   });
   addTilesetLayer({
-    key: 'cis', tilesetId: 'markulyo.1po8cpyssdt3', color: irrColors.CIS,
-    label: 'Communal Irrigation System', anchorId: 'toggle-cis',
-    isVisible: ()=> document.getElementById('toggle-irr').checked && document.getElementById('toggle-cis').checked
-  });
-  addTilesetLayer({
     key: 'vulnnis', tilesetId: 'markulyo.uf9bh9dqr0hf', color: irrColors.NIS,
     label: 'Vulnerable Area (NIS)', anchorId: 'toggle-muni-nis', levelColored: true,
     isVulnerableArea: true, vulnType: 'NIS', nameField: 'NIS',
     isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-nis').checked
-  });
-  addTilesetLayer({
-    key: 'vulncis', tilesetId: 'markulyo.0jqiu6hon9y8', color: irrColors.CIS,
-    label: 'Vulnerable Area (CIS)', anchorId: 'toggle-muni-cis', levelColored: true,
-    isVulnerableArea: true, vulnType: 'CIS',
-    isVisible: ()=> document.getElementById('toggle-muni').checked && document.getElementById('toggle-muni-cis').checked
   });
   addTilesetLayer({
     key: 'stw', tilesetId: 'markulyo.al3nqvxi2h9m', color: interventionColors.STW,
@@ -522,7 +514,7 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
 
 map.on('error', (e)=>{
   const msg = e.error?.message || String(e.error || 'unknown map error');
-  const anchors = { nis:'toggle-nis', cis:'toggle-cis', vulnnis:'toggle-muni-nis', vulncis:'toggle-muni-cis', stw:'toggle-stw', desilting:'toggle-desilting', fuel:'toggle-fuel' };
+  const anchors = { nis:'toggle-nis', vulnnis:'toggle-muni-nis', stw:'toggle-stw', desilting:'toggle-desilting', fuel:'toggle-fuel' };
   const key = Object.keys(anchors).find(k=> e.sourceId === `${k}-src`);
   if(key) layerStatus(key, anchors[key], `Map error: ${msg}`, true);
   else console.error('Map error:', msg);
@@ -536,13 +528,8 @@ document.getElementById('toggle-muni-nis').addEventListener('change', ()=>{
   applyTilesetVisibility('vulnnis');
   renderSystemList(document.getElementById('search').value);
 });
-document.getElementById('toggle-muni-cis').addEventListener('change', ()=>{
-  applyTilesetVisibility('vulncis');
-  renderSystemList(document.getElementById('search').value);
-});
-document.getElementById('toggle-irr').addEventListener('change', ()=>{ applyLayerVisibility('NIS'); applyLayerVisibility('CIS'); });
+document.getElementById('toggle-irr').addEventListener('change', ()=> applyLayerVisibility('NIS'));
 document.getElementById('toggle-nis').addEventListener('change', ()=> applyLayerVisibility('NIS'));
-document.getElementById('toggle-cis').addEventListener('change', ()=> applyLayerVisibility('CIS'));
 document.getElementById('toggle-interventions').addEventListener('change', ()=>{ applyTilesetVisibility('stw'); applyTilesetVisibility('desilting'); applyTilesetVisibility('fuel'); });
 document.getElementById('toggle-stw').addEventListener('change', ()=> applyTilesetVisibility('stw'));
 document.getElementById('toggle-desilting').addEventListener('change', ()=> applyTilesetVisibility('desilting'));
