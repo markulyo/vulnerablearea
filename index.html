@@ -236,6 +236,8 @@ const tilesetVisibility = {};
 let vulnerableAreaKeys = [];
 const layerMeta = {};
 const featuresChecked = {};
+const clickableLayerIds = [];
+const clickLayerMeta = {};
 
 // Mapbox GL never requests a source's tiles while every layer using it is
 // hidden (visibility:'none'), so a layer that starts toggled off has no
@@ -480,20 +482,12 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
     layerIds = [`${key}-fill`, `${key}-line`];
   }
 
+  // Click handling is centralized in the single map-level 'click' listener
+  // below (queryRenderedFeatures + topmost pick) so overlapping layers show
+  // one popup instead of one per layer under the cursor.
   layerIds.forEach(id=>{
-    map.on('click', id, (e)=>{
-      const f = e.features[0];
-      const p = f.properties || {};
-      const systemName = (nameField && p[nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name;
-      const title = systemName || p.name || p.NAME || p.Name || label;
-      const level = p.Level || p.level;
-      const metaBits = [level ? `Vulnerability: ${level}` : null, label, p.muni || p.municipality, p.area].filter(Boolean);
-      const note = p.note || p.description || '';
-      new mapboxgl.Popup({offset:8})
-        .setLngLat(e.lngLat)
-        .setHTML(popupHTML(title, metaBits.join(' • '), note, p))
-        .addTo(map);
-    });
+    clickableLayerIds.push(id);
+    clickLayerMeta[id] = { label, nameField };
     map.on('mouseenter', id, ()=> map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', id, ()=> map.getCanvas().style.cursor = '');
   });
@@ -511,6 +505,30 @@ async function addTilesetLayer({key, tilesetId, color, label, anchorId, isVisibl
   // layers every time any layer finishes loading.
   bringFrontLayersToTop();
 }
+
+// Single click handler for every interactive layer: queryRenderedFeatures
+// returns matches ordered topmost-first, so an overlap (e.g. a Vulnerable
+// Area polygon under an NIS polygon) shows one popup for whichever layer
+// is actually drawn on top, instead of a popup per overlapping layer.
+map.on('click', (e)=>{
+  const layers = clickableLayerIds.filter(id=> map.getLayer(id));
+  if(layers.length === 0) return;
+  const features = map.queryRenderedFeatures(e.point, { layers });
+  if(features.length === 0) return;
+  const f = features[0];
+  const meta = clickLayerMeta[f.layer.id];
+  if(!meta) return;
+  const p = f.properties || {};
+  const systemName = (meta.nameField && p[meta.nameField]) || p['System Name'] || p.system_name || p.systemName || p.SystemName || p.SYSTEM_NAME || p.system || p.sys_name;
+  const title = systemName || p.name || p.NAME || p.Name || meta.label;
+  const level = p.Level || p.level;
+  const metaBits = [level ? `Vulnerability: ${level}` : null, meta.label, p.muni || p.municipality, p.area].filter(Boolean);
+  const note = p.note || p.description || '';
+  new mapboxgl.Popup({offset:8})
+    .setLngLat(e.lngLat)
+    .setHTML(popupHTML(title, metaBits.join(' • '), note, p))
+    .addTo(map);
+});
 
 map.on('error', (e)=>{
   const msg = e.error?.message || String(e.error || 'unknown map error');
