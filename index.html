@@ -305,7 +305,7 @@ function applyTilesetVisibility(key){
 
 // Layers that must always render above every other layer, regardless of
 // the order tilesets finish loading in.
-const frontLayerIds = ['stw-halo', 'stw-circle'];
+const frontLayerIds = ['desilting-line'];
 function bringFrontLayersToTop(){
   frontLayerIds.forEach(id=>{ if(map.getLayer(id)) map.moveLayer(id); });
 }
